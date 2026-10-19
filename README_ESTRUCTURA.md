@@ -91,8 +91,12 @@ Completan el repositorio: `manifest.json` e `icons/` (instalación como app), `t
 
 ## Cómo se comprobó que el troceado no pierde nada
 
-- El código JavaScript de los 52 módulos, unido en orden, es **idéntico byte a byte** al de la versión de un solo archivo (`index_beta_v2.html`); solo se cambiaron de sitio tres bloques de arranque (estado inicial, migraciones y primer dibujo) para que se ejecuten al final.
+- El código JavaScript de los 52 módulos, unido en orden, es **idéntico byte a byte** al de la versión de un solo archivo (`index_beta_v2_1.html`); solo se cambiaron de sitio tres bloques de arranque (estado inicial, migraciones y primer dibujo) para que se ejecuten al final.
 - Los únicos cambios de código respecto a esa versión son: el editor de exámenes y la Planificación temporal se cargan desde sus archivos (antes iban incrustados en el HTML), el PDF del editor lee su CSS y sus fuentes por ruta, y se eliminó el botón oculto «Preparar sin conexión».
 - Con los mismos datos, 24 pantallas generan **exactamente el mismo HTML** en las dos versiones; el estado guardado coincide y la recarga con datos y diseño abierto funciona igual.
 - Pruebas completas con datos: diseño → cobertura → rúbrica → corrección → reimportación con alumnos corregidos → copia de seguridad → paquete → PDF → versión B.
 - Sin conexión (service worker): la app, el editor, el PDF con Lora/Inter y la Planificación temporal cargan desde la caché, sin peticiones a internet.
+
+## Cambios recientes
+
+- **Rúbrica = estructura del Diseño.** «Importar a la rúbrica →» copia ahora apartado → pregunta → subpregunta, en el mismo orden y con los puntos de cada parte (antes solo importaba una línea por pregunta). El código está en `js/corrector/editor-examenes.js` (`cxImportarEstructura`, `exHojas`, `exPrevisionReimport`); el puente `editor/js/puente-cuaderno.js` entrega ahora el texto completo y la numeración de cada nodo. Los bloques importados llevan `tipo` («apartado», «pregunta», «subpregunta») y las preguntas sueltas dentro de un nivel mixto son bloques de un solo ítem (`unico`).

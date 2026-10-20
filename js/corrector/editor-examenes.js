@@ -58,8 +58,8 @@ window.exCobertura=()=>{
   const grupo=grupoActual(), act=grupo&&grupo.actividades.find(a=>a.id===state.ui.corExamId);
   if(!act||!_exFrame||!_exFrame.contentWindow.__ee){ mostrarAviso("El editor todavía no ha cargado."); return; }
   exFlush();
-  const est=_exFrame.contentWindow.__ee.estructura(), hojas=[];
-  (function w(l){ l.forEach(n=>{ if(n.max!=null) hojas.push(n); else w(n.hijos); }); })(est.nodos);
+  const est=exConReparto(_exFrame.contentWindow.__ee.estructura()), hojas=[];
+  exHojas(est.nodos).forEach(n=>hojas.push(n));
   if(!hojas.length){ mostrarAviso("El examen aún no tiene preguntas con puntuación."); return; }
   const total=hojas.reduce((a,h)=>a+h.max,0), pts=new Map();
   hojas.forEach(h=>{ const c=h.crit||[]; c.forEach(id=>pts.set(id,(pts.get(id)||0)+h.max/c.length)); });
@@ -68,10 +68,11 @@ window.exCobertura=()=>{
     return `<tr${p?"":' style="color:var(--danger,#b91c1c)"'}><td style="padding:3px 8px 3px 0;white-space:nowrap">${esc(c.id)}</td><td style="padding:3px 8px;font-size:12px">${esc(c.texto)}</td><td style="padding:3px 0;text-align:right;white-space:nowrap">${p?cxFmtPts(p)+" pts · "+Math.round(p/total*100)+" %":"sin evaluar"}</td></tr>`; }).join("");
   const sinCrit=hojas.filter(h=>!(h.crit||[]).length), av=[];
   if(Math.abs(total-10)>0.01) av.push(`El examen suma ${cxFmtPts(total)} puntos (no 10). Se escalará a 10 si la rúbrica está en «convertir a 10».`);
-  (est.descuadres||[]).forEach(d=>av.push(`«${esc(String(d.label).slice(0,50))}» vale ${cxFmtPts(d.max)} pts, pero sus apartados suman ${cxFmtPts(d.suma)}. En la rúbrica cuenta la puntuación de la pregunta (${cxFmtPts(d.max)}); quita los puntos de la pregunta si prefieres corregir por apartados.`));
+  (est.descuadres||[]).forEach(d=>av.push(`«${esc(String(d.label).slice(0,50))}» vale ${cxFmtPts(d.max)} pts, pero sus partes suman ${cxFmtPts(d.suma)}. La rúbrica copia las partes (${cxFmtPts(d.suma)} pts): corrige los puntos en el Diseño y vuelve a importar.`));
+  if((est.repartidos||[]).length) av.push(`${est.repartidos.length} pregunta${est.repartidos.length===1?"":"s"} con subpreguntas sin puntos propios (${est.repartidos.slice(0,4).map(s=>esc(String(s).slice(0,40))).join("; ")}${est.repartidos.length>4?"…":""}): la rúbrica reparte sus puntos a partes iguales. Pon puntos a cada subpregunta en el Diseño si quieres otro reparto.`);
   if(sinCrit.length) av.push(`${sinCrit.length} pregunta${sinCrit.length===1?"":"s"} sin criterio: ${sinCrit.slice(0,6).map(h=>esc(h.label.slice(0,40))).join("; ")}${sinCrit.length>6?"…":""}`);
   if(conPrev){ const f=lista.filter(c=>!pts.has(c.id)).length; if(f) av.push(`${f} criterio${f===1?"":"s"} previsto${f===1?"":"s"} para este examen no se evalúa${f===1?"":"n"} en ninguna pregunta.`); }
-  exModal(`<h2 style="font-size:16.5px;margin-bottom:4px">📊 Cobertura de criterios</h2><p class="sub" style="margin:0 0 10px">${hojas.length} preguntas · ${cxFmtPts(total)} puntos${conPrev?" · criterios previstos del examen":" · criterios marcados"}</p>
+  exModal(`<h2 style="font-size:16.5px;margin-bottom:4px">📊 Cobertura de criterios</h2><p class="sub" style="margin:0 0 10px">${hojas.length} ${hojas.length===1?"ítem puntuable":"ítems puntuables"} · ${cxFmtPts(total)} puntos${conPrev?" · criterios previstos del examen":" · criterios marcados"}</p>
     ${av.length?`<div class="alert-box" style="margin-bottom:10px">${av.map(a=>"• "+a).join("<br>")}</div>`:`<p style="color:var(--ok,#15803d);margin:0 0 10px">✓ Sin avisos: todas las preguntas tienen criterio y el total es correcto.</p>`}
     ${filas?`<table style="width:100%;border-collapse:collapse;font-size:13px">${filas}</table>`:`<p class="sub">Ninguna pregunta tiene criterios marcados todavía.</p>`}`);
 };
@@ -86,7 +87,7 @@ window.exAnalisis=()=>{
     cxItemsFlat(cxRubricaDe(act,al.id)).forEach(it=>{
       const v=sc[it.id]; if(v==null||v==="") return;
       const val=Number(v), max=Number(it.max)||0; if(!isFinite(val)||!max) return;
-      const key=it.fuenteId||it.id, r=items.get(key)||{label:it.label,sum:0,max:0,n:0}; r.sum+=val; r.max+=max; r.n++; items.set(key,r);
+      const key=it.fuenteId||it.id, r=items.get(key)||{label:exEtiquetaItem(cxRubricaDe(act,al.id),it),sum:0,max:0,n:0}; r.sum+=val; r.max+=max; r.n++; items.set(key,r);
       (it.links||[]).forEach(l=>{ const w=(Number(l.peso)||0)/100, c=crits.get(l.critId)||{sum:0,max:0}; c.sum+=val*w; c.max+=max*w; crits.set(l.critId,c); });
     });
   });
@@ -97,7 +98,7 @@ window.exAnalisis=()=>{
   exModal(`<h2 style="font-size:16.5px;margin-bottom:4px">📈 Análisis de «${esc(act.nombre)}»</h2>
     <p class="sub" style="margin:0 0 10px">${n} alumno${n===1?"":"s"} corregido${n===1?"":"s"}${nN?` · nota media ${cxFmtPts(sumN/nN)}`:""} · porcentaje medio de puntos logrados</p>
     ${peores.length?`<div class="alert-box" style="margin-bottom:10px">Preguntas con menos del 50 % de acierto: ${peores.map(r=>esc(String(r.label).slice(0,50))).join("; ")}.</div>`:""}
-    <h3 style="font-size:13.5px;margin:6px 0">Por pregunta</h3><table style="width:100%;border-collapse:collapse">${arr.map(r=>fila(esc(String(r.label||"(sin enunciado)").slice(0,80)),r)).join("")}</table>
+    <h3 style="font-size:13.5px;margin:6px 0">Por pregunta</h3><table style="width:100%;border-collapse:collapse">${arr.map(r=>fila(esc(String(r.label||"(sin enunciado)").slice(0,120)),r)).join("")}</table>
     ${crits.size?`<h3 style="font-size:13.5px;margin:12px 0 6px">Por criterio de evaluación</h3><table style="width:100%;border-collapse:collapse">${[...crits.entries()].map(([id,r])=>r.max?fila(esc(id),r):"").join("")}</table>`:""}`);
 };
 /* Enunciado del diseño junto a cada ítem al corregir (se rellena de forma asíncrona) */
@@ -115,7 +116,10 @@ async function exPintarEnunciados(){
     const va=state.ui.corAlId? cxVarianteDeAlumno(act,state.ui.corAlId):null;
     let rec=va? await exGet(act.id+":"+va.id):null; if(!rec) rec=await exGet(act.id); if(!rec) return;
     const mapa=new Map(); (function w(l){ (l||[]).forEach(n=>{ mapa.set(n.id,n); w(n.children); }); })(rec.exam.body);
+    const norm=s=>String(s||"").replace(/\s+/g," ").trim();
     els.forEach(e=>{ const n=mapa.get(e.dataset.fuente); if(!n||e.querySelector(".ex-enun")) return; const tx=exTextoNodo(n); if(!tx) return;
+      const visto=e.dataset.unico? null : norm(e.firstElementChild&&e.firstElementChild.textContent);
+      if(e.dataset.unico? tx.length<=400 : (visto&&visto.includes(norm(tx).slice(0,80)))) return;   // ya se ve en la rúbrica
       const d=document.createElement("div"); d.className="ex-enun"; d.style.cssText="font-size:11.5px;color:var(--mut);margin-top:3px;white-space:pre-wrap;max-height:84px;overflow:auto;border-left:2px solid var(--line);padding-left:6px"; d.textContent=tx; e.insertBefore(d,e.querySelector(".ex-coment")); });
   }catch(e){}
 }
@@ -142,7 +146,7 @@ function exRenderPorPregunta(grupo,act){
   }).join("");
   c.innerHTML=`<div class="card"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><h2 style="font-size:15px">${esc(act.nombre)} · corregir por pregunta</h2>
     <button class="ghost" style="border:1px solid var(--line)" onclick="exTogglePreg()">← Corregir por alumno/a</button></div>
-    <label style="font-size:12.5px;color:var(--mut);display:block;margin-top:8px">Pregunta<select class="in" style="width:100%;margin-top:4px" onchange="exElegirPreg(this.value)">${gen.map(it=>`<option value="${esc(keyOf(it))}" ${keyOf(it)===k?"selected":""}>${esc(String(it.label||"(sin enunciado)").slice(0,90))} · ${cxFmtPts(it.max)} pts</option>`).join("")}</select></label>
+    <label style="font-size:12.5px;color:var(--mut);display:block;margin-top:8px">Pregunta<select class="in" style="width:100%;margin-top:4px" onchange="exElegirPreg(this.value)">${gen.map(it=>`<option value="${esc(keyOf(it))}" ${keyOf(it)===k?"selected":""}>${esc(exEtiquetaItem(act.rubrica,it).slice(0,110))} · ${cxFmtPts(it.max)} pts</option>`).join("")}</select></label>
     <div data-fuente="${esc(sel.fuenteId||"")}" style="margin-top:6px"></div>
     <p class="sub" style="margin:8px 0 0;font-size:12px">Intro pasa al siguiente alumno/a. Vacío = sin puntuar.</p></div>
     <div class="card"><table style="width:100%"><tbody>${filas}</tbody></table></div>`;
@@ -250,7 +254,7 @@ window.exAyuda=()=>exModal(`<h2 style="font-size:16.5px;margin-bottom:8px">❔ C
   <ol style="margin:0 0 10px 18px;padding:0;font-size:13.5px;line-height:1.55">
     <li><b>Crear.</b> En Programación de Aula, «Abrir en el Corrector». El examen aparece en el Corrector con tres pestañas: Diseño · Rúbrica · Corregir.</li>
     <li><b>Diseñar.</b> Con «⛶ Pantalla completa» el editor ocupa toda la pantalla. Escribe el examen y pon <i>puntos</i> a cada pregunta (o a sus apartados, no a ambos). En el panel de la pregunta puedes marcar los <i>criterios de evaluación</i> que trabaja. «📊 Cobertura» muestra qué criterios evalúa y avisa si algo no cuadra.</li>
-    <li><b>Importar a la rúbrica.</b> «Importar a la rúbrica →» crea la rúbrica con las mismas preguntas y puntos. Puedes reimportar tras retocar el examen: se conservan descriptores, vínculos y notas; si ya hay alumnado corregido, se avisa de lo que cambia y ninguna puntuación queda por encima del nuevo máximo. Si el examen no tiene apartados, la rúbrica tampoco los muestra («Usar apartado» los activa).</li>
+    <li><b>Importar a la rúbrica.</b> «Importar a la rúbrica →» crea la rúbrica con la misma estructura (apartados, preguntas y subpreguntas, en el mismo orden) y los puntos de cada parte; si una pregunta tiene puntos propios y también sus subpreguntas, cuentan los de las subpreguntas. Puedes reimportar tras retocar el examen: se conservan descriptores, vínculos y notas; si ya hay alumnado corregido, se avisa de lo que cambia y ninguna puntuación queda por encima del nuevo máximo. Si el examen no tiene apartados, la rúbrica tampoco los muestra.</li>
     <li><b>Corregir.</b> Por alumno/a, o con «↕ Por pregunta» una pregunta de todo el grupo. Cada ítem muestra su enunciado y admite un comentario que sale en la hoja impresa. «📈 Análisis» resume el acierto por pregunta y criterio. La nota pasa sola a Calificar.</li>
     <li><b>NESE y versión B.</b> Primero crea la rúbrica adaptada en la pestaña Rúbrica; luego, en Diseño, elige su pestaña y adapta el examen. «Versión B» baraja las preguntas y comparte la rúbrica.</li>
     <li><b>Reutilizar.</b> «💾 Plantilla de la Programación» sirve el diseño a otros grupos de la misma actividad. «📦 Exportar paquete» guarda examen, rúbrica y adaptaciones en un archivo; en «Nuevo examen» → «📥 Importar paquete» lo recuperas en otro grupo o curso (hay que reasignar el alumnado NESE).</li>
@@ -351,37 +355,72 @@ window.exComoPlantilla=async()=>{
   mostrarToast("✓ Diseño guardado como plantilla de la Programación");
 };
 
-/* Importar el diseño a la rúbrica. Cada ítem recuerda el nodo del examen del que
-   viene (fuenteId): al reimportar se actualizan etiquetas y puntos SIN perder
-   descriptores, vínculos a criterios ni ids (y por tanto las notas ya puestas). */
+/* Importar el diseño a la rúbrica. La rúbrica copia el árbol del Diseño tal cual:
+   Apartado → Pregunta → Subpregunta, en el mismo orden y con los puntos de cada parte.
+   - Solo se puntúan las «hojas»: la subpregunta, o la pregunta si no se desglosa en partes
+     con puntos. Cada apartado y cada pregunta suman lo de sus partes.
+   - Si una pregunta tiene puntos propios y también sus subpreguntas, mandan las subpreguntas
+     (📊 Cobertura avisa cuando no suman lo mismo).
+   - En un mismo nivel (también en la raíz), si se mezclan preguntas desglosadas y preguntas sueltas,
+     estas últimas pasan a ser un bloque propio de un solo ítem para no alterar el orden del examen.
+     Un examen sin ninguna pregunta desglosada se importa como antes: un único bloque «Preguntas».
+   - Cada ítem y cada bloque recuerdan el nodo del examen del que vienen (fuenteId): al
+     reimportar se actualizan enunciados y puntos SIN perder descriptores, vínculos a criterios
+     ni ids (y por tanto las notas ya puestas). */
+function exPuntua(n){ return n.max!=null||(n.hijos||[]).some(exPuntua); }      // ¿hay algo puntuable en este nodo?
+function exDesglosa(n){ return (n.hijos||[]).some(exPuntua); }                   // ¿se divide en partes puntuables?
+function exHojas(l){ return (l||[]).filter(exPuntua).flatMap(n=>exDesglosa(n)? exHojas(n.hijos) : [n]); }
+/* Subpreguntas sin puntos: si la pregunta (o subpregunta) tiene puntos y alguna de sus partes no, esas partes
+   se reparten a partes iguales lo que no han asignado las demás. Así la rúbrica copia siempre la estructura
+   completa y no cambia el total; los puntos se afinan después en el Diseño o en la propia rúbrica. */
+function exConReparto(est){
+  const e=JSON.parse(JSON.stringify(est)), rep=[], suma=n=>exHojas([n]).reduce((s,h)=>s+h.max,0);
+  (function w(l){ (l||[]).forEach(n=>{
+    const hs=n.hijos||[];
+    if(n.max!=null&&hs.length){
+      const sin=hs.filter(h=>!exPuntua(h)), resto=Math.round((n.max-hs.filter(exPuntua).reduce((s,h)=>s+suma(h),0))*100)/100;
+      if(sin.length&&resto>0.001){ const cada=Math.floor(resto/sin.length*100)/100; let ac=0;
+        sin.forEach((h,i)=>{ h.max=i<sin.length-1? cada : Math.round((resto-ac)*100)/100; ac+=h.max; });
+        rep.push(n.label); }
+    }
+    w(hs); }); })(e.nodos);
+  e.repartidos=rep; e.descuadres=(e.descuadres||[]).filter(d=>rep.indexOf(d.label)<0);   // lo repartido ya cuadra
+  return e;
+}
 async function cxImportarEstructura(grupo,act,est,dest){
   dest=dest||act; const _okC=cxCriteriosValidosEnCatalogo(grupo.catalogoKey);
   const viejas=new Map(), viejosN=new Map();
   cxItemsFlat(dest.rubrica).forEach(it=>{ if(it.fuenteId) viejas.set(it.fuenteId,it); });
   cxNodosFlat(dest.rubrica).forEach(x=>{ if(x.n.fuenteId) viejosN.set(x.n.fuenteId,x.n); });
-  const usados=new Set();
-  const aplanar=n=>n.max!=null? [n] : n.hijos.flatMap(aplanar);
-  const leaf=n=>{ const o=viejas.get(n.id); usados.add(n.id); const m=Math.round(n.max*100)/100;
+  const usados=new Set(), rotulo=n=>n.rotulo||n.label;
+  const tipoDe=t=>t==="section"?"apartado":t==="question"?"pregunta":"subpregunta";
+  const leaf=(n,unico)=>{ const o=viejas.get(n.id); usados.add(n.id); const m=Math.round(n.max*100)/100;
     const q=(n.crit||[]).filter(id=>_okC.has(id)), base=q.length?Math.round(100/q.length):0;
     const lk=q.length? q.map((id,i)=>({critId:id,peso:i<q.length-1?base:100-base*(q.length-1)})) : null;
     const mismos=o&&lk&&(o.links||[]).length&&[...new Set(o.links.map(l=>l.critId))].sort().join("|")===[...q].sort().join("|");
-    return o? {...o,label:n.label,max:m,fuenteId:n.id,...(lk&&!mismos?{links:lk}:{})} : {id:uid(),label:n.label,max:m,desc:[],links:lk||[],fuenteId:n.id}; };
-  const nodo=(fid,title,r,plano)=>{ const o=viejosN.get(fid); return {id:o?o.id:uid(),title,items:r.items,subs:r.subs,elegir:o?(o.elegir||0):0,sinTitulo:o?!!o.sinTitulo:!!plano,fuenteId:fid}; };
-  const conv=(nodos,d)=>{ const items=[],subs=[];
-    for(const n of nodos){
-      if(n.max!=null){ items.push(leaf(n)); continue; }
-      if(!n.hijos.length) continue;
-      if(d<=CX_MAX_NIVELES-1){ const r=conv(n.hijos,d+1); if(r.items.length||r.subs.length) subs.push(nodo(n.id,n.label,r)); }
-      else aplanar(n).forEach(h=>items.push(leaf(h)));
+    const lab=unico?"":rotulo(n);
+    const r=o? {...o,label:lab,max:m,fuenteId:n.id,tipo:tipoDe(n.tipo),...(lk&&!mismos?{links:lk}:{})} : {id:uid(),label:lab,max:m,desc:[],links:lk||[],fuenteId:n.id,tipo:tipoDe(n.tipo)};
+    if(unico) r.unico=true; else delete r.unico;
+    return r; };
+  const nodo=(fid,title,tipo,r,plano)=>{ const o=viejosN.get(fid);
+    return {id:o?o.id:uid(),title,...(tipo?{tipo}:{}),items:r.items,subs:r.subs,elegir:o?(o.elegir||0):0,sinTitulo:o?!!o.sinTitulo:!!plano,fuenteId:fid}; };
+  /* d = nivel (0 = apartado) de los bloques que se crean dentro; la rúbrica admite CX_MAX_NIVELES niveles:
+     más abajo se aplanan las hojas dentro del último bloque. */
+  const conv=(nodos,d)=>{ const lista=nodos.filter(exPuntua), puedeBloque=d<=CX_MAX_NIVELES-1;
+    const hayBloques=puedeBloque&&lista.some(exDesglosa), items=[], subs=[];
+    for(const n of lista){
+      if(!exDesglosa(n)){
+        if(hayBloques) subs.push(nodo(n.id,rotulo(n),tipoDe(n.tipo),{items:[leaf(n,true)],subs:[]}));
+        else items.push(leaf(n));
+      } else if(puedeBloque) subs.push(nodo(n.id,rotulo(n),tipoDe(n.tipo),conv(n.hijos,d+1)));
+      else exHojas([n]).forEach(h=>items.push(leaf(h)));
     }
     return {items,subs}; };
-  const rub=[]; let sueltas=[], k=0; const hayApartados=est.nodos.some(n=>n.tipo==="section"&&n.max==null);
-  const cierra=()=>{ if(!sueltas.length) return; const r=conv(sueltas,1); if(r.items.length||r.subs.length) rub.push(nodo("_p"+(k++),"Preguntas",r,!hayApartados)); sueltas=[]; };
-  for(const n of est.nodos){
-    if(n.tipo==="section"&&n.max==null){ cierra(); const r=conv(n.hijos,1); if(r.items.length||r.subs.length) rub.push(nodo(n.id,n.label,r)); }
-    else sueltas.push(n);
-  }
-  cierra();
+  /* Raíz: si ninguna pregunta se desglosa, el examen es «plano» y va en un solo bloque «Preguntas» sin cabecera;
+     si alguna se desglosa (o hay apartados), cada nodo de la raíz es un bloque y las preguntas sueltas son bloques de un ítem. */
+  const rub=[], raiz=est.nodos.filter(exPuntua);
+  if(!raiz.some(exDesglosa)){ if(raiz.length) rub.push(nodo("_p0","Preguntas",null,{items:raiz.map(n=>leaf(n)),subs:[]},true)); }
+  else raiz.forEach(n=>rub.push(nodo(n.id,rotulo(n),tipoDe(n.tipo),exDesglosa(n)? conv(n.hijos,1) : {items:[leaf(n,true)],subs:[]})));
   if(!rub.length) return null;
   let huerfanos=0;
   if(viejas.size||viejosN.size){
@@ -396,48 +435,64 @@ async function cxImportarEstructura(grupo,act,est,dest){
     Object.keys(sc).forEach(id=>{ if(!maxPorId.has(id)) return; const v=Number(sc[id]), mx=maxPorId.get(id); if(sc[id]!=null&&sc[id]!==""&&isFinite(v)&&v>mx){ sc[id]=mx; recortes++; } }); });
   cxSyncCriteriosActividad(act);
   cxRecalcTodosLosAlumnos(grupo,act);
-  return {items:cxItemsFlat(rub).length,total:cxMaxTotal(rub),huerfanos,recortes};
+  const cuenta={apartado:0,pregunta:0,subpregunta:0};
+  cxNodosFlat(rub).forEach(({n})=>{ if(cuenta[n.tipo]!=null) cuenta[n.tipo]++; });
+  cxItemsFlat(rub).forEach(it=>{ if(!it.unico&&cuenta[it.tipo]!=null) cuenta[it.tipo]++; });
+  const resumen=[["apartado","apartados"],["pregunta","preguntas"],["subpregunta","subpreguntas"]].filter(([a])=>cuenta[a]).map(([a,b])=>cuenta[a]+" "+(cuenta[a]===1?a:b)).join(" · ");
+  return {items:cxItemsFlat(rub).length,total:cxMaxTotal(rub),huerfanos,recortes,resumen};
+}
+/* Texto de un ítem con su recorrido (apartado › pregunta › …) para listas donde se ve suelto */
+function exEtiquetaItem(rub,it){
+  let ruta=null;
+  (function w(l,r){ (l||[]).forEach(n=>{ if(ruta) return; const t=(n.sinTitulo&&!cxElegirEf(n))?"":String(n.title||"").split("\n")[0].slice(0,45), rr=t?[...r,t]:r;
+    if((n.items||[]).some(x=>x.id===it.id)) ruta=rr; else w(n.subs,rr); }); })(rub,[]);
+  return [...(ruta||[]),it.unico?"":String(it.label||"")].filter(Boolean).join(" › ")||"(sin enunciado)";
 }
 /* v2: qué cambia al reimportar si ya hay alumnado corregido */
 function exPrevisionReimport(grupo,act,est,dest){
-  const nuevos=new Map(); (function w(l){ l.forEach(n=>{ if(n.max!=null) nuevos.set(n.id,Math.round(n.max*100)/100); else w(n.hijos||[]); }); })(est.nodos);
+  const nuevos=new Map(); exHojas(est.nodos).forEach(n=>nuevos.set(n.id,Math.round(n.max*100)/100));
+  const enDiseno=new Set(); (function w(l){ (l||[]).forEach(n=>{ enDiseno.add(n.id); w(n.hijos); }); })(est.nodos);
   const viejos=cxItemsFlat(dest.rubrica).filter(it=>it.fuenteId);
   const conNota=it=>(grupo.alumnos||[]).filter(al=>{ const v=grupo.rubricScores&&grupo.rubricScores[al.id]&&grupo.rubricScores[al.id][act.id]&&grupo.rubricScores[al.id][act.id][it.id]; return v!=null&&v!==""; });
-  const alumnos=new Set(), cambian=[], quitan=[]; let exceden=0;
-  viejos.forEach(it=>{ const cn=conNota(it); if(!cn.length) return; cn.forEach(al=>alumnos.add(al.id));
-    const et=String(it.label||"(sin enunciado)").slice(0,40);
-    if(!nuevos.has(it.fuenteId)) quitan.push(et);
-    else { const nm=nuevos.get(it.fuenteId); if(Math.abs(nm-Number(it.max))>0.001){ cambian.push(`${et} (${cxFmtPts(it.max)} → ${cxFmtPts(nm)})`); cn.forEach(al=>{ if(Number(grupo.rubricScores[al.id][act.id][it.id])>nm) exceden++; }); } }
+  const alumnos=new Set(), cambian=[], quitan=[], desglosan=[]; let exceden=0;
+  viejos.forEach(it=>{ const cn=conNota(it), et=String(it.label||(it.unico&&exEtiquetaItem(dest.rubrica,it).split(" › ").pop())||"(sin enunciado)").slice(0,40);
+    if(!nuevos.has(it.fuenteId)){
+      if(enDiseno.has(it.fuenteId)) desglosan.push({et,conNota:cn.length>0});   // sigue en el examen pero ahora se divide en partes
+      else if(cn.length) quitan.push(et);
+    } else if(cn.length){ const nm=nuevos.get(it.fuenteId);
+      if(Math.abs(nm-Number(it.max))>0.001){ cambian.push(`${et} (${cxFmtPts(it.max)} → ${cxFmtPts(nm)})`); cn.forEach(al=>{ if(Number(grupo.rubricScores[al.id][act.id][it.id])>nm) exceden++; }); } }
+    cn.forEach(al=>alumnos.add(al.id));
   });
-  return {alumnos:alumnos.size,cambian,quitan,exceden};
+  return {alumnos:alumnos.size,cambian,quitan,exceden,desglosan};
 }
 window.exImportar=async()=>{
   const grupo=grupoActual(), act=grupo&&grupo.actividades.find(a=>a.id===state.ui.corExamId);
   if(!act||!_exFrame||!_exFrame.contentWindow.__ee){ mostrarAviso("El editor todavía no ha cargado."); return; }
   if(state.ui.corVerB&&!cxVarEditando(act)){ mostrarAviso("La versión B es una copia del examen general con las preguntas en otro orden y comparte su rúbrica. Importa desde «Examen general»."); return; }
   exFlush();
-  const est=_exFrame.contentWindow.__ee.estructura();
-  if(!est.nodos.length){ mostrarAviso("El examen aún no tiene preguntas ni apartados con puntuación. Añade puntos a las preguntas (campo «puntos») y vuelve a importar."); return; }
+  const est=exConReparto(_exFrame.contentWindow.__ee.estructura());
+  if(!est.nodos.length){ mostrarAviso("El examen aún no tiene preguntas ni apartados con puntuación. Añade puntos a las preguntas o a sus subpreguntas (campo «puntos») y vuelve a importar."); return; }
   if(!act.rubrica && !await cxPonerRubrica(grupo,act)) return;
   const dest=cxVarEditando(act)||act; const yaImp=cxItemsFlat(dest.rubrica).some(i=>i.fuenteId);
   if(!yaImp){
     const n=cxItemsFlat(dest.rubrica).length;
-    if(!await confirmar(`Se sustituirá la rúbrica actual (${n} ítem${n===1?"":"s"}) por la estructura del examen. Los criterios marcados en cada pregunta del Diseño pasan a la rúbrica; el resto podrás vincularlos en la pestaña Rúbrica.\n\n¿Continuar?`,{ok:"Importar",peligro:false})) return;
+    if(!await confirmar(`Se sustituirá la rúbrica actual (${n} ítem${n===1?"":"s"}) por la estructura del examen: apartados, preguntas y subpreguntas, con los puntos de cada una. Los criterios marcados en cada pregunta del Diseño pasan a la rúbrica; el resto podrás vincularlos en la pestaña Rúbrica.\n\n¿Continuar?`,{ok:"Importar",peligro:false})) return;
   } else {
     const pv=exPrevisionReimport(grupo,act,est,dest);
-    if(pv.alumnos){
-      const L=a=>a.slice(0,5).join("; ")+(a.length>5?"…":"");
-      const msg=`Ya hay ${pv.alumnos} alumno${pv.alumnos===1?"":"s"} corregido${pv.alumnos===1?"":"s"} con esta rúbrica y el examen ha cambiado:`
+    const L=a=>a.slice(0,5).join("; ")+(a.length>5?"…":""), avisoNotas=pv.alumnos&&(pv.cambian.length||pv.quitan.length), desglose=pv.desglosan.length>0;
+    if(avisoNotas||desglose){
+      const msg=(pv.alumnos?`Ya hay ${pv.alumnos} alumno${pv.alumnos===1?"":"s"} corregido${pv.alumnos===1?"":"s"} con esta rúbrica y el examen ha cambiado:`:"La rúbrica se va a actualizar con la estructura actual del examen:")
+        +(desglose?`\n• Ahora se dividen en subpreguntas, que se puntúan una a una (se pierden sus descriptores${pv.desglosan.some(d=>d.conNota)?" y las notas que tuvieran como pregunta entera":""}): ${L(pv.desglosan.map(d=>d.et))}`:"")
         +(pv.cambian.length?`\n• Cambian de puntuación: ${L(pv.cambian)}`:"")
         +(pv.quitan.length?`\n• Ya no están en el examen (se quitan de la rúbrica y de la nota): ${L(pv.quitan)}`:"")
         +(pv.exceden?`\n• ${pv.exceden} puntuaci${pv.exceden===1?"ón supera":"ones superan"} el nuevo máximo y se ajustará${pv.exceden===1?"":"n"} a él.`:"")
-        +`\n\nLas notas se recalcularán. ¿Continuar?`;
-      if((pv.cambian.length||pv.quitan.length) && !await confirmar(msg,{titulo:"⚠️ Reimportar con notas puestas",ok:"Reimportar",peligro:true})) return;
+        +(pv.alumnos?`\n\nLas notas se recalcularán. ¿Continuar?`:`\n\n¿Continuar?`);
+      if(!await confirmar(msg,{titulo:pv.alumnos?"⚠️ Reimportar con notas puestas":"Reimportar a la rúbrica",ok:"Reimportar",peligro:!!pv.alumnos})) return;
     }
   }
   const r=await cxImportarEstructura(grupo,act,est,dest);
   if(!r){ mostrarAviso("Ninguna pregunta tiene puntuación asignada, así que no hay nada que importar. Asigna puntos a las preguntas en el editor."); return; }
   save();
   state.ui.corTab="editor"; save(); render();
-  mostrarToast(`✓ ${r.items} ítems importados · total ${cxFmtPts(r.total)} pts`+(r.huerfanos?` · ${r.huerfanos} ya no existen en el examen`:"")+(r.recortes?` · ${r.recortes} puntuaci${r.recortes===1?"ón ajustada":"ones ajustadas"} al nuevo máximo`:"")+((est.descuadres||[]).length?` · ⚠️ ${est.descuadres.length} pregunta${est.descuadres.length===1?"":"s"} con apartados que no cuadran (mira 📊 Cobertura)`:"")+(Math.abs(r.total-10)>0.01?" · ⚠️ no suma 10":""),"info");
+  mostrarToast(`✓ Estructura importada: ${r.resumen||r.items+" ítems"} · total ${cxFmtPts(r.total)} pts`+(r.huerfanos?` · ${r.huerfanos} ya no existen en el examen`:"")+(r.recortes?` · ${r.recortes} puntuaci${r.recortes===1?"ón ajustada":"ones ajustadas"} al nuevo máximo`:"")+((est.descuadres||[]).length?` · ⚠️ ${est.descuadres.length} pregunta${est.descuadres.length===1?"":"s"} con partes que no suman lo que vale la pregunta (mira 📊 Cobertura)`:"")+((est.repartidos||[]).length?` · ℹ️ ${est.repartidos.length} pregunta${est.repartidos.length===1?"":"s"} con subpreguntas sin puntos: se han repartido a partes iguales (ajústalas en el Diseño o en la rúbrica)`:"")+(Math.abs(r.total-10)>0.01?" · ⚠️ no suma 10":""),"info");
 };

@@ -90,7 +90,8 @@ function cxEstadisticasItems(grupo,act){
           return (v==null||max<=0)?null:(Number(v)/max)*100;
         }).filter(v=>v!=null);
         const avg=vals.length? vals.reduce((x,y)=>x+y,0)/vals.length : null;
-        filas.push({seccion:(gr.nombre?"["+gr.nombre+"] ":"")+r.join(" › "),label:it.label||"(sin enunciado)",avg,n:vals.length});
+        const rr=(it.unico&&!it.label)? r.slice(0,-1) : r;
+        filas.push({seccion:(gr.nombre?"["+gr.nombre+"] ":"")+rr.join(" › "),label:it.label||(it.unico&&r[r.length-1])||"(sin enunciado)",avg,n:vals.length});
       });
       walk(sec.subs,r);
     });
@@ -116,8 +117,8 @@ function cxNodoCorregirHTML(sec,depth,sc,alId,actId){
   const atenuar=id=> k && ev.hay && !elegidos.has(id);
   const items=(sec.items||[]).map(it=>`
         <div class="row" style="justify-content:space-between;margin-bottom:6px;align-items:flex-start;${atenuar(it.id)?"opacity:.5":""}">
-          <div style="flex:1" data-fuente="${it.fuenteId||""}">
-            <div style="font-size:13.5px">${esc(it.label||"(sin enunciado)")}</div>
+          <div style="flex:1" data-fuente="${it.fuenteId||""}"${it.unico?' data-unico="1"':""}>
+            ${it.unico&&!it.label?"":`<div style="font-size:13.5px">${esc(it.label||"(sin enunciado)")}</div>`}
             ${it.desc&&it.desc.length?`<div style="font-size:11.5px;color:var(--mut);margin-top:2px">${it.desc.map(d=>`• ${esc(d)}`).join("<br>")}</div>`:""}
             ${exComentHTML(alId,actId,it.id)}
           </div>
@@ -128,7 +129,7 @@ function cxNodoCorregirHTML(sec,depth,sc,alId,actId){
         </div>`).join("");
   const subs=(sec.subs||[]).map(s=>`<div style="${atenuar(s.id)?"opacity:.5;":""}">${cxNodoCorregirHTML(s,depth+1,sc,alId,actId)}</div>`).join("");
   const cab=`<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:6px">
-      <div style="${depth===0?"font-size:12.5px;text-transform:uppercase;letter-spacing:.02em":"font-size:13px"};color:var(--mut);font-weight:600;white-space:pre-wrap">${esc(sec.title||(depth===0?"Apartado":"Subapartado"))}</div>
+      <div style="${depth===0&&sec.tipo!=="pregunta"?"font-size:12.5px;text-transform:uppercase;letter-spacing:.02em":"font-size:13px"};color:var(--mut);font-weight:600;white-space:pre-wrap">${esc(sec.title||CX_NOMBRE_TIPO[sec.tipo]||(depth===0?"Apartado":"Subapartado"))}</div>
       <div style="font-size:12px;color:var(--mut);white-space:nowrap">${ev.hay?`<strong style="color:var(--ink)">${cxFmtPts(ev.pts)}</strong>`:"—"} / ${cxFmtPts(cxMaxNodo(sec))}</div>
     </div>
     ${k?`<div class="sub" style="font-size:11.5px;margin:-2px 0 6px">A elegir: cuentan ${k} de ${cxNumHijos(sec)}. Puntúa solo lo que haya respondido.</div>`:""}`;
@@ -273,7 +274,7 @@ function cxRubricaBodyHTML(grupo,act,al,opts){
       const max=Number(it.max)||0;
       const desc=(it.desc&&it.desc.length)?`<div class="cx-item-desc">${it.desc.map(d=>"• "+esc(d)).join("<br>")}</div>`:"";
       return `<tr><td>
-          <div class="cx-item-label">${esc(it.label||"(sin enunciado)")}</div>
+          ${it.unico&&!it.label?"":`<div class="cx-item-label">${esc(it.label||"(sin enunciado)")}</div>`}
           ${desc}
           ${(grupo.examComentarios?.[al.id]?.[act.id+"|"+it.id]||"").trim()?`<div class="cx-item-desc" style="font-style:italic">✎ ${esc(grupo.examComentarios[al.id][act.id+"|"+it.id])}</div>`:""}
         </td>
@@ -288,9 +289,9 @@ function cxRubricaBodyHTML(grupo,act,al,opts){
     const mostrar=id=> !k || !ev.hay || eleg.has(id);
     const filas=(sec.items||[]).filter(it=>mostrar(it.id)).map(filaItem).join("");
     const subs=(sec.subs||[]).filter(s=>mostrar(s.id)).map(s=>nodoHTML(s,depth+1)).join("");
-    const tit=esc(sec.title||(depth===0?"Apartado":"Subapartado"));
+    const tit=esc(sec.title||CX_NOMBRE_TIPO[sec.tipo]||(depth===0?"Apartado":"Subapartado"));
     const pts=`<span style="float:right;font-weight:600;color:#141b28;text-transform:none;letter-spacing:0">${ev.hay?fmt(ev.pts):"—"} / ${fmt(cxMaxNodo(sec))}</span>`;
-    if(depth===0) return `<div class="cx-sec"><h2 style="white-space:pre-wrap">${pts}${tit}</h2>${filas?`<table><tbody>${filas}</tbody></table>`:""}${subs}</div>`;
+    if(depth===0) return `<div class="cx-sec"><h2 style="white-space:pre-wrap${sec.tipo==="pregunta"?";text-transform:none;letter-spacing:0;font-size:13.5px;color:#141b28":""}">${pts}${tit}</h2>${filas?`<table><tbody>${filas}</tbody></table>`:""}${subs}</div>`;
     return `<div style="margin:12px 0 0 ${depth>1?"14px":"0"}"><h3 style="font-size:12.5px;color:#465064;margin:0 0 4px;white-space:pre-wrap">${pts}${tit}</h3>${filas?`<table><tbody>${filas}</tbody></table>`:""}${subs}</div>`;
   };
   const seccionesHtml=(rubAl||[]).map(sec=>nodoHTML(sec,0)).join("");

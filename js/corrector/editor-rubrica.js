@@ -5,6 +5,7 @@
 
 /* ---------- Editor de rúbrica ---------- */
 const CX_NOMBRE_NIVEL=["Apartado","Subapartado","Sub-subapartado"];
+const CX_NOMBRE_TIPO={apartado:"Apartado",pregunta:"Pregunta",subpregunta:"Subpregunta"};   // bloques importados del Diseño
 function cxFmtPts(v){ return String(Math.round((Number(v)||0)*100)/100).replace(".",","); }
 function renderCorEditor(grupo){
   const c=document.getElementById("tabContent");
@@ -71,7 +72,7 @@ function renderCorEditor(grupo){
   ${panelVariante}
   ${cxPanelPrevistosHTML(grupo,act,rub,variante)}
   <div class="card">
-    <p class="sub" style="margin:0">Organiza el examen como necesites: <strong>apartados</strong> con sus preguntas o ítems y, si hace falta, <strong>subapartados</strong> dentro (hasta ${CX_MAX_NIVELES} niveles). Cada ítem tiene su puntuación máxima, descriptores opcionales y los criterios de evaluación que trabaja. Si el alumnado elige (p. ej. «responda UNA de las dos opciones»), indica en ese apartado cuántos cuentan.</p>
+    <p class="sub" style="margin:0">Organiza el examen como necesites: <strong>apartados</strong> con sus preguntas o ítems y, si hace falta, <strong>subapartados</strong> dentro (hasta ${CX_MAX_NIVELES} niveles). Cada ítem tiene su puntuación máxima, descriptores opcionales y los criterios de evaluación que trabaja. Si el alumnado elige (p. ej. «responda UNA de las dos opciones»), indica en ese apartado cuántos cuentan. Al importar desde el Diseño, la rúbrica copia su estructura (apartado → pregunta → subpregunta) con los puntos de cada parte.</p>
     <div class="flex" style="margin-top:10px;align-items:center">
       <span class="pill" style="background:${totalOk?'#dcece0':'#f3dcdc'};color:${totalOk?'#1e5631':'#912525'}">Suma de puntos${variante?" (rúbrica adaptada)":""}: ${maxTotal.toFixed(2)} / 10</span>
 
@@ -85,7 +86,7 @@ function renderCorEditor(grupo){
   ${rub.map((sec,sIdx)=>renderCxNodoHTML(grupo,sec,0,sIdx,rub.length)).join("")}
   <div class="flex">
     <button class="btn" onclick="cxAddSeccion()">+ Añadir apartado</button>
-    ${rub.length===1&&!rub[0].sinTitulo&&!cxElegirEf(rub[0])?`<button class="ghost" style="border:1px solid var(--line)" title="Mostrar solo las preguntas, sin cabecera de apartado" onclick="cxOcultarApartado('${rub[0].id}')">Sin apartado</button>`:""}
+    ${rub.length===1&&!rub[0].sinTitulo&&!cxElegirEf(rub[0])&&(!rub[0].tipo||rub[0].tipo==="apartado")?`<button class="ghost" style="border:1px solid var(--line)" title="Mostrar solo las preguntas, sin cabecera de apartado" onclick="cxOcultarApartado('${rub[0].id}')">Sin apartado</button>`:""}
     ${!variante?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxGuardarComoPlantilla('${act.id}')">💾 Guardar como plantilla</button>`:""}
     ${progRef&&!variante?`<button class="ghost" style="border:1px solid var(--line)" title="Guarda esta rúbrica en el examen de la Programación &quot;${esc(progRef.prog.nombre)}&quot;: los demás grupos y los cursos siguientes la recibirán ya hecha al traer el examen" onclick="cxGuardarRubricaEnProgramacion('${act.id}')">📌 ${(progRef.progAct.rubrica||[]).length?"Actualizar la rúbrica de la Programación":"Guardar en la Programación"}</button>`:""}
     <button class="ghost" style="border:1px solid var(--line)" onclick="cxIrCorregir('${act.id}')">Ir a corregir →</button>
@@ -120,12 +121,13 @@ function renderCxNodoHTML(grupo,sec,depth,sIdx,nHermanos){
   const items=sec.items||[], subs=sec.subs||[];
   const nHijos=items.length+subs.length;
   const k=cxElegirEf(sec);
-  const nivel=CX_NOMBRE_NIVEL[depth]||"Subapartado";
+  const nivel=CX_NOMBRE_TIPO[sec.tipo]||CX_NOMBRE_NIVEL[depth]||"Subapartado";
   const estilo= depth===0 ? "" : `margin:10px 0 0;padding:12px 12px 12px 14px;border:1px solid var(--line);border-left:4px solid ${depth===1?"var(--accent)":"var(--brand-3,#7a8fb3)"};border-radius:10px;background:var(--surface-2,transparent)`;
   const abre= depth===0 ? `<div class="card" data-cxnodo="${sec.id}">` : `<div style="${estilo}" data-cxnodo="${sec.id}">`;
   const plegado=cxEstaPlegado(sec.id);
-  const nomSub=(CX_NOMBRE_NIVEL[depth+1]||"Subapartado").toLowerCase();
-  const resumen=[items.length?`${items.length} pregunta${items.length===1?"":"s"}`:"", subs.length?`${subs.length} ${nomSub}${subs.length===1?"":"s"}`:""].filter(Boolean).join(" · ");
+  const nomSub=(sec.tipo==="apartado"?"pregunta":sec.tipo==="pregunta"?"subpregunta":(CX_NOMBRE_NIVEL[depth+1]||"Subapartado")).toLowerCase();
+  const nomItem=(sec.tipo==="pregunta"||sec.tipo==="subpregunta")?"subpregunta":"pregunta";
+  const resumen=[items.length?`${items.length} ${nomItem}${items.length===1?"":"s"}`:"", subs.length?`${subs.length} ${nomSub}${subs.length===1?"":"s"}`:""].filter(Boolean).join(" · ");
   const cabecera=`<div class="flex" style="justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <button class="ghost" style="display:flex;align-items:center;gap:8px;padding:2px 6px;margin-left:-6px;text-align:left;flex:1;min-width:0;justify-content:flex-start" title="${plegado?"Desplegar":"Plegar"}" aria-expanded="${!plegado}" onclick="cxTogglePlegado('${sec.id}')">
         <span style="display:inline-block;width:14px;transition:transform .15s;transform:rotate(${plegado?0:90}deg);color:var(--mut)">▶</span>
@@ -150,7 +152,7 @@ function renderCxNodoHTML(grupo,sec,depth,sIdx,nHermanos){
         <button class="ghost danger small" onclick="cxDelSeccion('${sec.id}')">Eliminar ${nivel.toLowerCase()}</button>
       </div>
     </div>
-    <textarea class="in cx-autogrow" rows="1" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;font-weight:600;resize:none;overflow:hidden;line-height:1.45;font-size:${depth===0?"14.5px":"13.5px"}" placeholder="${depth===0?"Título y enunciado del apartado (p. ej. II. Comentario de fuente histórica — elija UNA de las dos fuentes)":"Título y enunciado del subapartado (p. ej. 2.1. Describa el tipo de fuente, analice el contenido…)"}" oninput="cxAutoGrow(this)" onchange="cxSetSeccionTitle('${sec.id}',this.value)">${esc(sec.title||"")}</textarea>
+    <textarea class="in cx-autogrow" rows="1" style="display:block;width:100%;box-sizing:border-box;margin-top:6px;font-weight:600;resize:none;overflow:hidden;line-height:1.45;font-size:${depth===0?"14.5px":"13.5px"}" placeholder="${sec.tipo==="pregunta"||sec.tipo==="subpregunta"?"Enunciado de la "+sec.tipo:depth===0?"Título y enunciado del apartado (p. ej. II. Comentario de fuente histórica — elija UNA de las dos fuentes)":"Título y enunciado del subapartado (p. ej. 2.1. Describa el tipo de fuente, analice el contenido…)"}" oninput="cxAutoGrow(this)" onchange="cxSetSeccionTitle('${sec.id}',this.value)">${esc(sec.title||"")}</textarea>
     ${nHijos>=2?`<label style="font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap">El alumnado responde
       <select class="in" style="padding:4px 8px" onchange="cxSetNodoElegir('${sec.id}',this.value)">
         <option value="0" ${!k?"selected":""}>todo (${nHijos} de ${nHijos})</option>
@@ -164,7 +166,7 @@ function renderCxNodoHTML(grupo,sec,depth,sIdx,nHermanos){
     ${subs.map((s,i)=>renderCxNodoHTML(grupo,s,depth+1,i,subs.length)).join("")}
     <div class="flex" style="margin-top:10px;gap:6px">
       <button class="ghost" style="border:1px solid var(--line)" onclick="cxAddItem('${sec.id}')">+ Pregunta / ítem</button>
-      ${depth<CX_MAX_NIVELES-1?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxAddSub('${sec.id}')">+ ${CX_NOMBRE_NIVEL[depth+1]}</button>`:""}
+      ${depth<CX_MAX_NIVELES-1?`<button class="ghost" style="border:1px solid var(--line)" onclick="cxAddSub('${sec.id}')">+ ${sec.tipo==="apartado"?"Pregunta con subpreguntas":sec.tipo==="pregunta"?"Subpregunta con partes":CX_NOMBRE_NIVEL[depth+1]}</button>`:""}
     </div>
   </div>`;
 }
@@ -190,7 +192,7 @@ function renderCxItemHTML(grupo,sec,it,iIdx){
   const nCrit=(it.links||[]).length;
   return `<div style="border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--surface,#fff)">
     <div class="flex" style="align-items:flex-start">
-      <input class="in" placeholder="Pregunta / enunciado / criterio de corrección" value="${esc(it.label)}" style="flex:1;min-width:180px" onchange="cxSetItemLabel('${sec.id}','${it.id}',this.value)">
+      ${it.unico?`<span style="flex:1;min-width:180px;font-size:12.5px;color:var(--mut)">Puntuación de la pregunta</span>`:`<input class="in" placeholder="Pregunta / enunciado / criterio de corrección" value="${esc(it.label)}" style="flex:1;min-width:180px" onchange="cxSetItemLabel('${sec.id}','${it.id}',this.value)">`}
       <span class="flex" style="gap:4px;align-items:center">
         <input class="in miniw" type="text" inputmode="decimal" autocomplete="off" value="${String(it.max).replace('.',',')}" style="width:70px" onchange="cxSetItemMax('${sec.id}','${it.id}',this.value)">
         <span style="font-size:12.5px;color:var(--mut)">pts</span>

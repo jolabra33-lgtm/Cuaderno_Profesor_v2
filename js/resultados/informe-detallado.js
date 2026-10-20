@@ -123,11 +123,11 @@ function desgloseNotaActividadHTML(grupo,al,a){
       const maxTotal=cxMaxTotal(rubAl);
       const nodo=(sec,depth)=>{
         const ev=cxEvalNodo(sec,sc);
-        const itemsRows=(sec.items||[]).map(it=>{
+        const itemsRows=(sec.items||[]).filter(it=>!it.unico).map(it=>{
           const val=sc[it.id]; const max=Number(it.max)||0;
           return `<tr><td style="padding-left:${16+depth*12}px">${esc(it.label||"Ítem")}</td><td style="text-align:right;white-space:nowrap">${val==null?"—":fmt(Number(val))} / ${fmt(max)}</td></tr>`;
         }).join("");
-        return `<tr${sec.sinTitulo&&depth===0&&!cxElegirEf(sec)?' style="display:none"':""}><td style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--mu);padding-top:7px;padding-left:${depth*12}px">${esc((sec.title||"Apartado").split("\n")[0])}${cxElegirEf(sec)?` (${cxElegirEf(sec)} de ${cxNumHijos(sec)})`:""}</td><td style="text-align:right;font-size:11px;color:var(--mu);padding-top:7px">${ev.hay?fmt(ev.pts):"—"} / ${fmt(cxMaxNodo(sec))}</td></tr>${itemsRows}${(sec.subs||[]).map(s=>nodo(s,depth+1)).join("")}`;
+        return `<tr${sec.sinTitulo&&depth===0&&!cxElegirEf(sec)?' style="display:none"':""}><td style="font-size:10px;font-weight:700;${sec.tipo==="pregunta"||sec.tipo==="subpregunta"?"":"text-transform:uppercase;"}letter-spacing:.03em;color:var(--mu);padding-top:7px;padding-left:${depth*12}px">${esc((sec.title||"Apartado").split("\n")[0])}${cxElegirEf(sec)?` (${cxElegirEf(sec)} de ${cxNumHijos(sec)})`:""}</td><td style="text-align:right;font-size:11px;color:var(--mu);padding-top:7px">${ev.hay?fmt(ev.pts):"—"} / ${fmt(cxMaxNodo(sec))}</td></tr>${itemsRows}${(sec.subs||[]).map(s=>nodo(s,depth+1)).join("")}`;
       };
       const filas=(rubAl||[]).map(sec=>nodo(sec,0)).join("");
       return `<table class="dsg-mini"><tbody>${filas}<tr><td style="font-weight:700">Total del examen (rúbrica)</td><td style="text-align:right;font-weight:700">${vc==null?"—":fmt(vc)} / ${fmt(cxEscalarDe(a,al.id)&&maxTotal>0&&Math.abs(maxTotal-10)>=0.01?10:maxTotal)}</td></tr></tbody></table>`;

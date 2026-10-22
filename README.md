@@ -22,7 +22,6 @@ tools/                  → Planificación temporal de la materia
 sw.js                   → service worker: funcionamiento sin conexión y versión de la caché
 manifest.json, icons/   → instalación como app
 guia_mejorada.html      → guía de uso actual (también enlazada desde la app)
-guia.html               → guía anterior
 tutoria/                → Gestor de Tutoría (independiente) y sus librerías en vendor/
 .nojekyll               → evita que GitHub procese el sitio como Jekyll
 README.md               → este archivo
@@ -85,7 +84,7 @@ sigue `tutoria/vendor/LEEME.txt` (en este repositorio ya vienen incluidas las li
 
 1. Antes, en el dispositivo de trabajo: **Exportar copia** en la app.
 2. Sube los archivos que cambien al repositorio, respetando las carpetas.
-3. **Cambia `CACHE_NAME` en `sw.js`** (`geohist-suite-v72-…` → `v73`, etc.). Es
+3. **Cambia `CACHE_NAME` en `sw.js`** (`geohist-suite-v74` → `v75`, etc.). Es
    imprescindible: sin eso los dispositivos podrían mezclar archivos viejos y nuevos.
 4. Abre la app con conexión; si aparece la versión anterior, ciérrala del todo y ábrela de nuevo.
 

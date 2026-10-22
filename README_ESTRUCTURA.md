@@ -21,7 +21,7 @@ La aplicación es **estática**: no necesita compilar nada. Se publica tal cual 
 | `sw.js` | Service worker: lista de archivos para el uso sin conexión y versión de la caché |
 | `guia_mejorada.html` | Guía de uso |
 
-Completan el repositorio: `manifest.json` e `icons/` (instalación como app), `tutoria/` (Gestor de Tutoría, aplicación independiente), `guia.html` (guía anterior), `.nojekyll` y `README.md` (instrucciones de publicación).
+Completan el repositorio: `manifest.json` e `icons/` (instalación como app), `tutoria/` (Gestor de Tutoría, aplicación independiente), `.nojekyll` y `README.md` (instrucciones de publicación).
 
 ## Módulos de `js/` (en orden de carga)
 

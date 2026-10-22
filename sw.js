@@ -17,7 +17,7 @@
 // cambia también el CACHE_NAME de abajo (v72 -> v73, etc.) para que los dispositivos
 // descarguen la versión nueva completa en vez de mezclar archivos viejos y nuevos.
 
-const CACHE_NAME = 'geohist-suite-v74';
+const CACHE_NAME = 'geohist-suite-v75';
 
 // El "esqueleto" de las dos apps: HTML, manifest e iconos.
 const APP_SHELL = [
@@ -78,6 +78,7 @@ const APP_SHELL = [
   './js/ui/render-accesibilidad.js',
   './js/corrector/editor-examenes.js',
   './js/99-arranque.js',
+  './js/una-ventana.js',
   './js/registro-sw.js',
   './editor/index.html',
   './editor/css/editor.css',
@@ -139,7 +140,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+    await Promise.all(keys.filter(k => k.startsWith('geohist-suite-') && k !== CACHE_NAME).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });

@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<script src="../js/una-ventana.js" data-app="tutoria" data-nombre="El Gestor de Tutoría"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EvalIES — Control de Evaluaciones</title>
 <link rel="manifest" href="manifest.json">
@@ -16077,6 +16078,7 @@ function guardarVersionCurso() {
   const filename = `evaluaciones_IES_${year}-${month}-${day}.html`;
 
   let html = document.documentElement.outerHTML;
+  html = html.replace(new RegExp('<' + 'script src="\\.\\./js/una-ventana\\.js"[^>]*>' + '<' + '/script>\\s*'), '');
 
   // Construimos las etiquetas de apertura y cierre por CONCATENACION para que
   // el texto fuente de esta funcion no contenga nunca, de forma literal, la
@@ -16798,6 +16800,9 @@ function markDirty() {
     persistLocal();
   }, 800);
 }
+
+// Si se pasa a trabajar en otra ventana, antes de ceder se guarda al momento (ver js/una-ventana.js).
+if (window.UnaVentana) UnaVentana.antesDeCeder(() => { clearTimeout(_autosaveTimer); persistLocal(); });
 
 function loadFromLocalStorage() {
   // Skip entirely in snapshot exports — data is already injected via __SNAPSHOT__
